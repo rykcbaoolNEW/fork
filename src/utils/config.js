@@ -257,7 +257,7 @@ export const meta = [
   {
     option: 'Default',
     value: {
-      tabName: `v5-${__ENVIRONMENT__}-${pkg.version}`,
+      tabName: `${pkg.version}-${__ENVIRONMENT__}`, // my school blocked all tabs that have "v5" in the title so like.
       tabIcon: './icon.svg',
     },
   },
@@ -331,6 +331,13 @@ export const meta = [
       tabIcon: '/assets/img/khan.png',
     },
   },
+  {
+    option: 'Google Drive',
+    value: {
+      tabName: 'My Drive - Google Drive',
+      tabIcon: 'https://drive.google.com/favicon.ico',
+    },
+  }
 ];
 
 export const searchConfig = [
@@ -536,7 +543,7 @@ export const appsPerPageConfig = [
   { option: '50 apps', value: { itemsPerPage: 50 } },
   { option: '75 apps', value: { itemsPerPage: 75 } },
   { option: '100 apps', value: { itemsPerPage: 100 } },
-  { option: 'All', value: { itemsPerPage: 10000 } },
+  { option: 'All', value: { itemsPerPage: 999999999999999999999999999999999999 } }, // should def not be running out
 ];
 
 export const navScaleConfig = [

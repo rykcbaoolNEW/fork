@@ -11,59 +11,70 @@ export default function useReg() {
     { path: new URL('/s_sw.js', location.origin).href, scope: new URL('/ham/', location.origin).href }
   ];
 
-  useEffect(() => {
-    const init = async () => {
-      if (!window.scr) {
-        const script = document.createElement('script');
-        script.src = '/eggs/scramjet.all.js';
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      }
+ useEffect(() => {
+  let cancelled = false;
 
-      const { ScramjetController } = $scramjetLoadController();
+  const init = async () => {
+    if (!window.scr) {
+      const script = document.createElement("script");
+      script.src = "/eggs/scramjet.all.js";
 
-      const hamPrefix = '/ham/';
-      const eggsPath = '/eggs/';
-
-      window.scr = new ScramjetController({
-        prefix: hamPrefix,
-        files: {
-          wasm: eggsPath + 'scramjet.wasm.wasm',
-          all: eggsPath + 'scramjet.all.js',
-          sync: eggsPath + 'scramjet.sync.js',
-        },
-        flags: { rewriterLogs: false, scramitize: false, cleanErrors: true, sourcemaps: true },
-        codec: makecodec()
+      await new Promise((resolve, reject) => {
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
       });
 
-      window.scr.init();
+      if (cancelled) return;
+    }
 
-      for (const sw of sws) {
-        try {
-          await navigator.serviceWorker.register(
-            sw.path,
-            sw.scope ? { scope: sw.scope } : undefined,
-          );
-        } catch (err) {
-          console.warn(`SW reg err (${sw.path}):`, err);
-        }
+    if (!window.$scramjetLoadController) return;
+
+    const { ScramjetController } = $scramjetLoadController();
+
+    if (!ScramjetController) return;
+
+    window.scr = new ScramjetController({
+      prefix: "/ham/",
+      files: {
+        wasm: "/eggs/scramjet.wasm.wasm",
+        all: "/eggs/scramjet.all.js",
+        sync: "/eggs/scramjet.sync.js",
+      },
+      flags: {
+        rewriterLogs: false,
+        scramitize: false,
+        cleanErrors: true,
+        sourcemaps: true,
+      },
+      codec: makecodec(),
+    });
+
+    window.scr.init();
+
+    for (const sw of sws) {
+      try {
+        await navigator.serviceWorker.register(sw.path, {
+          scope: sw.scope,
+        });
+      } catch (err) {
+        console.warn("SW error:", err);
       }
+    }
 
-      const baremuxPath = new URL('/baremux/worker.js', location.origin).href;
-      const connection = new BareMuxConnection(baremuxPath);
+    const connection = new BareMuxConnection(
+      new URL("/baremux/worker.js", location.origin).href
+    );
 
-      const libcurlPath = '/libcurl/index.mjs';
-      const wisp = options.wServer || defaultWs;
-      await connection.setTransport(libcurlPath, [
-        {
-          wisp: wisp,
-        },
-      ]);
-    };
+    await connection.setTransport("/libcurl/index.mjs", [
+      { wisp: options.wServer || defaultWs },
+    ]);
+  };
 
-    init();
-  }, [options.wServer]);
+  init();
+
+  return () => {
+    cancelled = true;
+  };
+}, [options.wServer]);
 }

@@ -1,28 +1,36 @@
 import { useNavigate } from 'react-router-dom';
 import NavItem from '../components/NavItem';
-import { LayoutGrid, Gamepad2, Cog } from 'lucide-react';
+import { LayoutGrid, Gamepad2, Cog, LogIn, User, LogOut } from 'lucide-react';
 import { useOptions } from '/src/utils/optionsContext';
 import pkg from '../../package.json';
 import nav from '../styles/nav.module.css';
 import theme from '../styles/theming.module.css';
 import clsx from 'clsx';
 import Logo from '../components/Logo';
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useEffect, useState } from 'react';
+
+import { auth } from '../firebase/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 const version = pkg.version;
 const itemSize = 16;
-
-const navItems = [
-  { name: 'Apps', id: 'btn-a', type: LayoutGrid, route: '/materials' },
-  { name: 'Games', id: 'btn-g', type: Gamepad2, route: '/docs' },
-  { name: 'Settings', id: 'btn-s', type: Cog, route: '/settings' },
-];
 
 const Nav = memo(() => {
   const navigate = useNavigate();
   const { options } = useOptions();
 
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+
+    return () => unsub();
+  }, []);
+
   const scale = Number(options.navScale || 1);
+
   const dimensions = useMemo(
     () => ({
       navHeight: Math.round(69 * scale),
@@ -31,20 +39,43 @@ const Nav = memo(() => {
       versionFont: Math.round(9 * scale),
       versionMargin: Math.round(-10 * scale),
     }),
-    [scale],
+    [scale]
   );
 
   const handleLogoClick = useCallback(() => navigate('/'), [navigate]);
 
-  const items = useMemo(
-    () =>
-      navItems.map((item) => ({
-        ...item,
-        size: itemSize,
-        onClick: () => navigate(item.route),
-      })),
-    [navigate],
-  );
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/');
+  };
+
+  const items = useMemo(() => {
+    const baseItems = [
+      { name: 'Apps', id: 'btn-a', type: LayoutGrid, route: '/materials' },
+      { name: 'Games', id: 'btn-g', type: Gamepad2, route: '/docs' },
+      { name: 'Settings', id: 'btn-s', type: Cog, route: '/settings' },
+    ];
+
+    if (user && !user.isAnonymous) {
+      baseItems.push(
+        { name: 'Profile', id: 'btn-p', type: User, route: '/profile' },
+        { name: 'Logout', id: 'btn-o', type: LogOut, route: null, onClick: handleLogout }
+      );
+    } else {
+      baseItems.push({
+        name: 'Sign in',
+        id: 'btn-l',
+        type: LogIn,
+        route: '/login',
+      });
+    }
+
+    return baseItems.map((item) => ({
+      ...item,
+      size: itemSize,
+      onClick: item.onClick || (() => navigate(item.route)),
+    }));
+  }, [navigate, user]);
 
   return (
     <div
@@ -52,11 +83,16 @@ const Nav = memo(() => {
         nav.nav,
         theme['nav-backgroundColor'],
         theme[`theme-${options.theme || 'default'}`],
-        ' w-full shadow-x1/20 flex items-center pl-6 pr-5 gap-5 z-50',
+        ' w-full shadow-x1/20 flex items-center pl-6 pr-5 gap-5 z-50'
       )}
       style={{ height: `${dimensions.navHeight}px` }}
     >
-      <Logo width={dimensions.logoWidth} height={dimensions.logoHeight} action={handleLogoClick} />
+      <Logo
+        width={dimensions.logoWidth}
+        height={dimensions.logoHeight}
+        action={handleLogoClick}
+      />
+
       <div
         className="border rounded-full text-center"
         style={{
@@ -68,7 +104,11 @@ const Nav = memo(() => {
       >
         {'v' + version}
       </div>
-      <div className="flex items-center gap-5 ml-auto" style={{ height: 'calc(100% - 0.5rem)' }}>
+
+      <div
+        className="flex items-center gap-5 ml-auto"
+        style={{ height: 'calc(100% - 0.5rem)' }}
+      >
         <NavItem items={items} />
       </div>
     </div>

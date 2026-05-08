@@ -15,22 +15,26 @@ import { validateAdKey } from './utils/hooks/popunder/validateAdKey';
 import './index.css';
 import 'nprogress/nprogress.css';
 
-const importHome = () => import('./pages/Home');
-const importApps = () => import('./pages/Apps');
-const importGms = () => import('./pages/Apps2');
-const importSettings = () => import('./pages/Settings');
+import { auth } from './firebase/firebase';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 
-const Home = lazyLoad(importHome);
-const Apps = lazyLoad(importApps);
-const Apps2 = lazyLoad(importGms);
-const Settings = lazyLoad(importSettings);
+/* ================= LAZY PAGES ================= */
+const Login = lazyLoad(() => import('./pages/Login'));
+const Profile = lazyLoad(() => import('./pages/Profile'));
+
+const Home = lazyLoad(() => import('./pages/Home'));
+const Apps = lazyLoad(() => import('./pages/Apps'));
+const Apps2 = lazyLoad(() => import('./pages/Apps2'));
+const Settings = lazyLoad(() => import('./pages/Settings'));
 const Player = lazyLoad(() => import('./pages/Player'));
 
-initPreload('/materials', importApps);
-initPreload('/docs', importGms);
-initPreload('/settings', importSettings);
-initPreload('/', importHome);
+/* ================= PRELOAD ================= */
+initPreload('/materials', () => import('./pages/Apps'));
+initPreload('/docs', () => import('./pages/Apps2'));
+initPreload('/settings', () => import('./pages/Settings'));
+initPreload('/', () => import('./pages/Home'));
 
+/* ================= TRACKING ================= */
 function useTracking() {
   const location = useLocation();
 
@@ -39,78 +43,98 @@ function useTracking() {
   }, [location]);
 }
 
+/* ================= THEMED APP ================= */
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
+
+  const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
   const popunderEnabled = POPUNDER_ENABLED === 'true';
-  const adKeyPassed = usePopunderStore((state) => state.adKeyPassed);
-  const setAdKeyPassed = usePopunderStore((state) => state.setAdKeyPassed);
+  const adKeyPassed = usePopunderStore((s) => s.adKeyPassed);
+  const setAdKeyPassed = usePopunderStore((s) => s.setAdKeyPassed);
+
   useReg();
   useTracking();
 
+  /* AUTH */
   useEffect(() => {
-    let cancaled = false;
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setLoadingAuth(false);
+    });
+
+    return () => unsub();
+  }, []);
+
+  /* POPUNDER VALIDATION */
+  useEffect(() => {
+    let cancelled = false;
 
     const run = async () => {
-      const jocc =
-        typeof options.adKeyInput === 'string' && options.adKeyInput.trim()
-          ? options.adKeyInput.trim()
-          : typeof options.adKey === 'string' && options.adKey.trim()
-            ? options.adKey.trim()
-            : '';
+      const key =
+        options.adKeyInput?.trim() ||
+        options.adKey?.trim() ||
+        '';
 
-      if (!jocc) {
-        if (!cancaled) setAdKeyPassed(false);
+      if (!key) {
+        if (!cancelled) setAdKeyPassed(false);
         return;
       }
 
-      const valid = await validateAdKey(jocc);
-      if (cancaled) return;
+      const valid = await validateAdKey(key);
+      if (cancelled) return;
 
       setAdKeyPassed(valid);
 
-      if (valid && (options.adKey !== jocc || options.adKeyInput !== jocc)) {
-        updateOption({ adKey: jocc, adKeyInput: jocc });
+      if (valid && options.adKey !== key) {
+        updateOption({ adKey: key, adKeyInput: key });
       }
     };
 
     run();
 
     return () => {
-      cancaled = true;
+      cancelled = true;
     };
-  }, [options.adKey, options.adKeyInput, setAdKeyPassed, updateOption]);
+  }, [options.adKey, options.adKeyInput]);
 
+  /* ROUTES */
   const pages = useMemo(
     () => [
       { path: '/', element: <Home /> },
       { path: '/materials', element: <Apps /> },
       { path: '/docs', element: <Apps2 /> },
       { path: '/docs/r', element: <Player /> },
-      { path: '/search', element: <Search />},
+      { path: '/search', element: <Search /> },
       { path: '/settings', element: <Settings /> },
-      { path: '/portal/k12/*', element: <NotFound /> },
-      { path: '/ham/*', element: <NotFound /> },
+      { path: '/login', element: <Login /> },
+      { path: '/profile', element: <Profile /> }, // 👈 added
       { path: '*', element: <NotFound /> },
     ],
-    [],
+    []
   );
 
+  /* BACKGROUND */
   const backgroundStyle = useMemo(() => {
-    const bgDesignConfig =
+    const bg =
       options.bgDesign === 'None'
         ? 'none'
         : (
-            bgDesign.find((d) => d.value.bgDesign === options.bgDesign) || bgDesign[0]
-          ).value.getCSS?.(options.bgDesignColor || '102, 105, 109') || 'none';
+            bgDesign.find((d) => d.value.bgDesign === options.bgDesign) ||
+            bgDesign[0]
+          ).value.getCSS?.(options.bgDesignColor || '102,105,109') || 'none';
 
     return `
       body {
         color: ${options.siteTextColor || '#a0b0c8'};
-        background-image: ${bgDesignConfig};
+        background-image: ${bg};
         background-color: ${options.bgColor || '#111827'};
       }
     `;
-  }, [options.siteTextColor, options.bgDesign, options.bgDesignColor, options.bgColor]);
+  }, [options]);
+
+  if (loadingAuth) return null;
 
   return (
     <>
@@ -123,10 +147,17 @@ const ThemedApp = memo(() => {
 
 ThemedApp.displayName = 'ThemedApp';
 
-const App = () => (
-  <OptionsProvider>
-    <ThemedApp />
-  </OptionsProvider>
-);
+/* ================= APP WRAPPER ================= */
+const App = () => {
+  useEffect(() => {
+    signInAnonymously(auth);
+  }, []);
+
+  return (
+    <OptionsProvider>
+      <ThemedApp />
+    </OptionsProvider>
+  );
+};
 
 export default App;
