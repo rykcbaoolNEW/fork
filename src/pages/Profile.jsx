@@ -1,52 +1,45 @@
 import { useEffect, useState } from "react";
-import { auth, db } from "../firebase/firebase";
-import { useNavigate } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-
 import Nav from "../layouts/Nav";
 import Footer from "../components/Footer";
+import useSecondSync from "../hooks/useSecondSync";
 
 export default function Profile() {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const navigate = useNavigate();
+
+  useSecondSync();
+
+  const [username, setUsername] = useState("");
+  const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
+    const savedUsername = localStorage.getItem("username");
+    if (!savedUsername) return;
 
-      if (u && !u.isAnonymous) {
-        const snap = await getDoc(doc(db, "users", u.uid));
-        if (snap.exists()) {
-          setProfile(snap.data());
-        }
-      }
-    });
+    setUsername(savedUsername);
 
-    return () => unsub();
+    // load saved time
+    const data = JSON.parse(localStorage.getItem("sessionData")) || {};
+    const userStats = data[savedUsername];
+
+    const initialSeconds = Math.floor((userStats?.totalTimeMs || 0) / 1000);
+    setSeconds(initialSeconds);
+
+    // live counter
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // 🔥 NOT LOGGED IN OR ANONYMOUS
-  if (!user || user.isAnonymous) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+
+  if (!username) {
     return (
       <>
         <Nav />
         <div style={{ color: "white", padding: 40 }}>
           Not logged in.
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
-  // 🔥 LOADING PROFILE DATA
-  if (!profile) {
-    return (
-      <>
-        <Nav />
-        <div style={{ color: "white", padding: 40 }}>
-          Loading...
         </div>
         <Footer />
       </>
@@ -61,12 +54,8 @@ export default function Profile() {
         <div style={card}>
           <h1>Profile</h1>
 
-          <p>Username: {profile.username}</p>
-          <p>UID: {user.uid}</p>
-
-          <button style={btn} onClick={() => navigate("/")}>
-            Go Home
-          </button>
+          <p>Username: {username}</p>
+          <p>More coming soon...</p>
         </div>
       </div>
 
@@ -88,15 +77,4 @@ const card = {
   padding: 30,
   borderRadius: 12,
   width: 350,
-};
-
-const btn = {
-  marginTop: 10,
-  width: "100%",
-  padding: 10,
-  borderRadius: 8,
-  border: "none",
-  background: "#2563eb",
-  color: "white",
-  cursor: "pointer",
 };

@@ -6,10 +6,13 @@ import Footer from "../components/Footer";
 
 import { auth, db } from "../firebase/firebase";
 
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
 } from "firebase/auth";
 
 import {
@@ -50,8 +53,11 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const email = `${username}@gmail.com`; // 👈 FAKE EMAIL SYSTEM
+      await setPersistence(auth, browserLocalPersistence);
 
+      const email = `${username}@gmail.com`;
+
+      /* ---------------- REGISTER ---------------- */
       if (isRegister) {
         const q = query(
           collection(db, "users"),
@@ -74,22 +80,48 @@ const Login = () => {
 
         const user = result.user;
 
-        await setDoc(doc(db, "users", user.uid), {
-          uid: user.uid,
-          username,
-          email,
-          createdAt: Date.now(),
-          lastLogin: Date.now(),
-        });
+        // ✅ create full profile safely
+        await createUserIfMissing(user.uid, username);
+
+        // optional extra fields (safe merge)
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            username,
+            email,
+            lastLogin: Date.now(),
+          },
+          { merge: true }
+        );
+
+        localStorage.setItem("username", username);
 
         navigate("/");
-      } else {
-        const email = `${username}@gmail.com`;
+      }
 
+      /* ---------------- LOGIN ---------------- */
+      else {
         await signInWithEmailAndPassword(auth, email, password);
 
-        navigate("/");
+        const user = auth.currentUser;
+
+        // ensure profile exists
+        await createUserIfMissing(user.uid, username);
+
+        // update last login
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            lastLogin: Date.now(),
+          },
+          { merge: true }
+        );
+
+        localStorage.setItem("username", username);
+
         alert("Logged in successfully");
+
+        navigate("/");
       }
     } catch (err) {
       alert(err.message);
@@ -147,6 +179,10 @@ const Login = () => {
             style={inputStyle}
           />
 
+          <div style={{ fontSize: "12px", opacity: 0.7, marginBottom: 10 }}>
+            Warning! Settings sync across devices using Firebase.
+          </div>
+
           <button onClick={handleAuth} style={buttonStyle}>
             {loading
               ? "Loading..."
@@ -198,5 +234,6 @@ const buttonStyle = {
   cursor: "pointer",
   fontSize: "14px",
 };
+
 
 export default Login;

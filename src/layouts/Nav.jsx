@@ -20,14 +20,15 @@ const Nav = memo(() => {
   const { options } = useOptions();
 
   const [user, setUser] = useState(null);
+  const [username, setUsername] = useState("");
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
+ useEffect(() => {
+  const unsub = onAuthStateChanged(auth, (u) => {
+    setUser(u);
+  });
 
-    return () => unsub();
-  }, []);
+  return () => unsub();
+}, []);
 
   const scale = Number(options.navScale || 1);
 
@@ -56,7 +57,7 @@ const Nav = memo(() => {
       { name: 'Settings', id: 'btn-s', type: Cog, route: '/settings' },
     ];
 
-    if (user && !user.isAnonymous) {
+    if (user) {
       baseItems.push(
         { name: 'Profile', id: 'btn-p', type: User, route: '/profile' },
         { name: 'Logout', id: 'btn-o', type: LogOut, route: null, onClick: handleLogout }

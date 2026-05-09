@@ -16,10 +16,10 @@ import './index.css';
 import 'nprogress/nprogress.css';
 
 import { auth } from './firebase/firebase';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 /* ================= LAZY PAGES ================= */
-const Login = lazyLoad(() => import('./pages/Login'));
+const Login = lazyLoad(() => import('./pages/login'));
 const Profile = lazyLoad(() => import('./pages/Profile'));
 
 const Home = lazyLoad(() => import('./pages/Home'));
@@ -27,6 +27,7 @@ const Apps = lazyLoad(() => import('./pages/Apps'));
 const Apps2 = lazyLoad(() => import('./pages/Apps2'));
 const Settings = lazyLoad(() => import('./pages/Settings'));
 const Player = lazyLoad(() => import('./pages/Player'));
+import useTimeTracker from "./hooks/useTimeTracker";
 
 /* ================= PRELOAD ================= */
 initPreload('/materials', () => import('./pages/Apps'));
@@ -149,9 +150,7 @@ ThemedApp.displayName = 'ThemedApp';
 
 /* ================= APP WRAPPER ================= */
 const App = () => {
-  useEffect(() => {
-    signInAnonymously(auth);
-  }, []);
+  
 
   return (
     <OptionsProvider>

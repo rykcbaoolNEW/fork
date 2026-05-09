@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { db, auth } from "../firebase/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 
 const OptionsContext = createContext();
 
@@ -20,7 +20,6 @@ export const OptionsProvider = ({ children }) => {
 
   //  login
   useEffect(() => {
-    signInAnonymously(auth);
 
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
