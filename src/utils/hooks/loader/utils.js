@@ -1,6 +1,6 @@
 import { mango } from './of.js';
-import whitelist from '/src/data/whitelist.json';
-import appsData from '/src/data/apps.json';
+import whitelist from '../../data/whitelist.json';
+import appsData from '../../data/apps.json';
 
 const check = (inp, engine) => {
   const trimmed = inp.trim();
