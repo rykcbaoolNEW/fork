@@ -11,6 +11,8 @@ import { libcurlPath } from '@mercuryworkshop/libcurl-transport';
 import { baremuxPath } from 'bare-mux-fork/node';
 import { scramjetPath } from '@mercuryworkshop/scramjet/path';
 import { uvPath } from '@titaniumnetwork-dev/ultraviolet';
+const res = await fetch('https://ci.baylib.top/apps.json?t=' + Date.now());
+const apps = await res.json();
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -142,19 +144,7 @@ export default defineConfig(({ command }) => {
           });
         },
       },
-      {
-        name: 'remote-apps-json',
-        apply: 'build',
-        async load(id) {
-          const cleanId = normalizePath(id).split('?')[0];
-
-          if (!cleanId.endsWith('/src/data/apps.json')) {
-            return null;
-          }
-
-          return remoteApps();
-        },
-      },
+      
 
     ].filter(Boolean),
     build: {
