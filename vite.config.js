@@ -191,6 +191,7 @@ export default defineConfig(({ command }) => {
     server: {
       port: 1234,
       strictPort: true,
+      allowedHosts: true,
       proxy: {
         '/assets/img': {
           target: 'https://dogeub-assets.pages.dev',
