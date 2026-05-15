@@ -4,7 +4,7 @@ const store = create((set) => ({
   tabs: [
     {
       title: 'New Tab',
-      id: crypto.randomUUID(),
+      id: Math.random().toString(36).slice(2),
       url: 'tabs://new',
       active: true,
       history: ['tabs://new'],
