@@ -1,43 +1,42 @@
-import { useEffect } from 'react';
-import { BareMuxConnection } from 'bare-mux-fork';
-import { useOptions } from '/src/utils/optionsContext';
-import { makecodec } from './of';
+import { useEffect } from "react";
+import { BareMuxConnection } from "bare-mux-fork";
+import { useOptions } from "/src/utils/optionsContext.jsx";
+import { makecodec } from "/src/utils/hooks/loader/of.js";
 
 export default function useReg() {
   const { options } = useOptions();
 
-  const defaultWs =
-    `${location.protocol === 'http:' ? 'ws:' : 'wss:'}//${location.host}/wisp/`;
+  const defaultWs = `${location.protocol === "http:" ? "ws:" : "wss:"}//${location.host}/wisp/`;
+
+  const wispServer = options?.wServer || defaultWs;
 
   const sws = [
     {
-      path: new URL('/sw.js', location.origin).href,
-      scope: new URL('/portal/k12/', location.origin).href,
+      path: new URL("/sw.js", location.origin).href,
+      scope: new URL("/portal/k12/", location.origin).href,
     },
     {
-      path: new URL('/s_sw.js', location.origin).href,
-      scope: new URL('/ham/', location.origin).href,
+      path: new URL("/s_sw.js", location.origin).href,
+      scope: new URL("/ham/", location.origin).href,
     },
   ];
 
   useEffect(() => {
     let cancelled = false;
+    let scrInitialized = false;
 
     const init = async () => {
       try {
         // ---------------------------
-        // 1. Load Scramjet script
+        // 1. Scramjet script load
         // ---------------------------
         if (!window.scr) {
-          const script = document.createElement('script');
-          script.src = '/eggs/scramjet.all.js';
+          const script = document.createElement("script");
+          script.src = "/eggs/scramjet.all.js";
 
           await new Promise((resolve, reject) => {
             script.onload = resolve;
-            script.onerror = (err) => {
-              console.error('[Scramjet] Failed to load script');
-              reject(err);
-            };
+            script.onerror = reject;
             document.head.appendChild(script);
           });
 
@@ -45,72 +44,83 @@ export default function useReg() {
         }
 
         // ---------------------------
-        // 2. Validate Scramjet loader
+        // 2. Scramjet loader safety
         // ---------------------------
-        if (typeof window.$scramjetLoadController !== 'function') {
-          console.error('[Scramjet] Loader missing: $scramjetLoadController');
+        const loader = window.$scramjetLoadController;
+        if (typeof loader !== "function") {
+          console.error("[Scramjet] loader missing");
           return;
         }
 
-        const mod = window.$scramjetLoadController();
+        const mod = loader();
         const ScramjetController = mod?.ScramjetController;
 
         if (!ScramjetController) {
-          console.error('[Scramjet] ScramjetController not found');
+          console.error("[Scramjet] controller missing");
           return;
         }
 
         // ---------------------------
-        // 3. Init Scramjet
+        // 3. Init Scramjet (prevent double init)
         // ---------------------------
-        window.scr = new ScramjetController({
-          prefix: '/ham/',
-          files: {
-            wasm: '/eggs/scramjet.wasm.wasm',
-            all: '/eggs/scramjet.all.js',
-            sync: '/eggs/scramjet.sync.js',
-          },
-          flags: {
-            rewriterLogs: false,
-            scramitize: false,
-            cleanErrors: true,
-            sourcemaps: true,
-          },
-          codec: makecodec(),
-        });
+        if (!scrInitialized) {
+          window.scr = new ScramjetController({
+            prefix: "/ham/",
+            files: {
+              wasm: "/eggs/scramjet.wasm.wasm",
+              all: "/eggs/scramjet.all.js",
+              sync: "/eggs/scramjet.sync.js",
+            },
+            flags: {
+              rewriterLogs: false,
+              scramitize: false,
+              cleanErrors: true,
+              sourcemaps: true,
+            },
+            codec: makecodec(),
+          });
 
-        window.scr.init();
+          window.scr.init();
+          scrInitialized = true;
+        }
 
         // ---------------------------
-        // 4. Register service workers
+        // 4. Service workers
         // ---------------------------
-        for (const sw of sws) {
-          try {
-            await navigator.serviceWorker.register(sw.path, {
-              scope: sw.scope,
-            });
-          } catch (err) {
-            console.warn('[SW] Registration failed:', err);
+        if ("serviceWorker" in navigator) {
+          for (const sw of sws) {
+            try {
+              await navigator.serviceWorker.register(sw.path, {
+                scope: sw.scope,
+              });
+            } catch (err) {
+              console.warn("[SW] failed:", err);
+            }
           }
         }
 
         // ---------------------------
-        // 5. BareMux setup
+        // 5. BareMux safety init
         // ---------------------------
-        if (!window.BareMuxConnection && !BareMuxConnection) {
-          console.error('[BareMux] Connection class missing');
+        if (!BareMuxConnection) {
+          console.error("[BareMux] missing class");
           return;
         }
 
-        const connection = new BareMuxConnection(
-          new URL('/baremux/worker.js', location.origin).href
-        );
+        const workerUrl = new URL("/baremux/worker.js", location.origin).href;
 
-        await connection.setTransport('/libcurl/index.mjs', [
-          { wisp: options.wServer || defaultWs },
+        const connection = new BareMuxConnection(workerUrl);
+
+        if (!connection?.setTransport) {
+          console.error("[BareMux] setTransport missing");
+          return;
+        }
+
+        await connection.setTransport("/libcurl/index.mjs", [
+          { wisp: wispServer },
         ]);
       } catch (err) {
-        console.error('[useReg] Init failed:', err);
+        console.error("[useReg] Init failed:", err);
       }
     };
 
@@ -119,5 +129,5 @@ export default function useReg() {
     return () => {
       cancelled = true;
     };
-  }, [options.wServer]);
+  }, [options?.wServer]);
 }
