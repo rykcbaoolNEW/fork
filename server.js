@@ -15,7 +15,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const port = process.env.PORT || 2345; // nvm lets change it back it will not work lol
+const port = process.env.PORT || 1234; // nvm lets change it back it will not work lol
 const server = createServer();
 const bare = process.env.BARE !== "false" ? createBareServer("/seal/") : null;
 logging.set_level(logging.NONE);
