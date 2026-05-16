@@ -3,12 +3,12 @@
   "private": true,
   "version": "5.0.42",
   "type": "module",
- "scripts": {
-  "dev": "concurrently \"vite\" \"node server.js\"",
-  "build": "vite build",
-  "lint": "eslint .",
-  "preview": "vite preview"
-}
+  "scripts": {
+    "dev": "concurrently \"vite\" \"node server.js\"",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
     "@fastify/cookie": "^11.0.2",
@@ -52,6 +52,7 @@
     "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^4.1.11",
     "vite": "^7.0.4",
-    "vite-plugin-bundle-obfuscator": "^1.8.0"
+    "vite-plugin-bundle-obfuscator": "^1.8.0",
+    "concurrently": "^9.0.0"
   }
 }
