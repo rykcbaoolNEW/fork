@@ -12,7 +12,7 @@ import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
 
-import "./src/dashboard.js";
+
 
 dotenv.config();
 
