@@ -1,7 +1,5 @@
 import dotenv from "dotenv";
 import Fastify from "fastify";
-import { addDomain, removeDomain } from "./src/byodManager.js";
-import fs from "fs";
 import fastifyStatic from "@fastify/static";
 import compress from "@fastify/compress";
 import fastifyCookie from "@fastify/cookie";
@@ -12,14 +10,12 @@ import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
 
-
-
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const port = process.env.PORT || 1234; // nvm lets change it back it will not work lol
+const port = process.env.PORT || 1234;
 const server = createServer();
 const bare = process.env.BARE !== "false" ? createBareServer("/seal/") : null;
 logging.set_level(logging.NONE);
