@@ -22,6 +22,6 @@ app.delete("/domains", async (req) => {
     return { success: true };
 });
 
-app.listen({ port: 3000 }).then(() => {
-    console.log("Dashboard running on 3000");
+app.listen({ port: 4000 }).then(() => { // there was conflict on port 3000 so moved to 4000 lol
+    console.log("Dashboard running on 4000");
 });
