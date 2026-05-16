@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import Fastify from "fastify";
-import { addDomain, removeDomain } from "./byodManager.js";
+import { addDomain, removeDomain } from "./src/byodManager.js";
 import fs from "fs";
 import fastifyStatic from "@fastify/static";
 import compress from "@fastify/compress";
