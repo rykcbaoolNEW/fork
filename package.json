@@ -3,12 +3,12 @@
   "private": true,
   "version": "5.0.42",
   "type": "module",
-  "scripts": {
-    "dev": "concurrently \"vite\" \"node server.js\""
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
+ "scripts": {
+  "dev": "concurrently \"vite\" \"node server.js\"",
+  "build": "vite build",
+  "lint": "eslint .",
+  "preview": "vite preview"
+}
   "dependencies": {
     "@fastify/compress": "^8.1.0",
     "@fastify/cookie": "^11.0.2",
