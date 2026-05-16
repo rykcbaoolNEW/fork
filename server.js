@@ -1,5 +1,7 @@
 import dotenv from "dotenv";
 import Fastify from "fastify";
+import { addDomain, removeDomain } from "./byodManager.js";
+import fs from "fs";
 import fastifyStatic from "@fastify/static";
 import compress from "@fastify/compress";
 import fastifyCookie from "@fastify/cookie";
@@ -9,6 +11,8 @@ import { createServer } from "node:http";
 import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
+
+import "./src/dashboard.js";
 
 dotenv.config();
 
