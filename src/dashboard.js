@@ -1,47 +1,27 @@
-const express = require("express");
-const { loadDomains, saveDomains } = require("./domainStore");
-const { writeCaddy } = require("./caddy");
-const { reloadCaddy } = require("../scripts/reloadCaddy");
+import Fastify from "fastify";
+import { addDomain, removeDomain } from "./byodManager.js";
+import fs from "fs";
 
-const app = express();
-app.use(express.json());
+const app = Fastify();
 
-// get domains
-app.get("/domains", (req, res) => {
-    res.json(loadDomains());
+app.get("/domains", async () => {
+    return JSON.parse(fs.readFileSync("./data/domains.json"));
 });
 
-// add domain
-app.post("/domains", (req, res) => {
+app.post("/domains", async (req, reply) => {
     const { domain } = req.body;
-    if (!domain) return res.status(400).send("Missing domain");
+    if (!domain) return reply.code(400).send("Missing domain");
 
-    let domains = loadDomains();
-
-    if (!domains.includes(domain)) {
-        domains.push(domain);
-    }
-
-    saveDomains(domains);
-    writeCaddy(domains);
-    reloadCaddy();
-
-    res.send("Domain added");
+    addDomain(domain);
+    return { success: true };
 });
 
-// remove domain
-app.delete("/domains", (req, res) => {
+app.delete("/domains", async (req) => {
     const { domain } = req.body;
-
-    let domains = loadDomains().filter(d => d !== domain);
-
-    saveDomains(domains);
-    writeCaddy(domains);
-    reloadCaddy();
-
-    res.send("Domain removed");
+    removeDomain(domain);
+    return { success: true };
 });
 
-app.listen(2345, () => {
-    console.log("Dashboard running on 2345");
+app.listen({ port: 3000 }).then(() => {
+    console.log("Dashboard running on 3000");
 });
