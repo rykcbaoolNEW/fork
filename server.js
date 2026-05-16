@@ -3,12 +3,17 @@ import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import compress from "@fastify/compress";
 import fastifyCookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
+
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
+
 import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
+
+import { addDomain, removeDomain, getDomains } from "./src/domainManager.js";
 
 dotenv.config();
 
@@ -18,14 +23,17 @@ const __dirname = dirname(__filename);
 const port = process.env.PORT || 1234;
 const server = createServer();
 const bare = process.env.BARE !== "false" ? createBareServer("/seal/") : null;
+
 logging.set_level(logging.NONE);
 
+// ---------------- WISP CONFIG ----------------
 Object.assign(wisp.options, {
   dns_method: "resolve",
   dns_servers: ["1.1.1.3", "1.0.0.3"],
   dns_result_order: "ipv4first"
 });
 
+// ---------------- UPGRADE HANDLER ----------------
 server.on("upgrade", (req, sock, head) =>
   bare?.shouldRoute(req)
     ? bare.routeUpgrade(req, sock, head)
@@ -34,6 +42,7 @@ server.on("upgrade", (req, sock, head) =>
       : sock.end()
 );
 
+// ---------------- FASTIFY CORE ----------------
 const app = Fastify({
   serverFactory: h => (
     server.on("request", (req, res) =>
@@ -47,8 +56,17 @@ const app = Fastify({
   forceCloseConnections: true
 });
 
+// ---------------- PLUGINS (ORDER MATTERS) ----------------
+await app.register(rateLimit, {
+  max: 60,
+  timeWindow: "1 minute"
+});
+
 await app.register(fastifyCookie);
-await app.register(compress, { global: true, encodings: ['gzip','deflate','br'] });
+await app.register(compress, {
+  global: true,
+  encodings: ["gzip", "deflate", "br"]
+});
 
 app.register(fastifyStatic, {
   root: join(__dirname, "dist"),
@@ -68,12 +86,64 @@ app.register(fastifyStatic, {
   }
 });
 
-if (process.env.MASQR === "true")
+if (process.env.MASQR === "true") {
   app.addHook("onRequest", MasqrMiddleware);
+}
 
+// ---------------- DOMAIN VALIDATION ----------------
+function isValidDomain(domain) {
+  return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(domain);
+}
+
+// ---------------- DOMAIN API ----------------
+
+// GET all domains
+app.get("/api/domains", async () => {
+  return { domains: getDomains() };
+});
+
+// ADD domain
+app.post("/api/add-domain", async (req, reply) => {
+  const { domain } = req.body || {};
+
+  if (!domain)
+    return reply.code(400).send({ error: "missing domain" });
+
+  if (!isValidDomain(domain))
+    return reply.code(400).send({ error: "invalid domain" });
+
+  const domains = addDomain(domain);
+
+  console.log("[DOMAIN ADD]", domain);
+
+  return {
+    success: true,
+    domains
+  };
+});
+
+// REMOVE domain
+app.post("/api/remove-domain", async (req, reply) => {
+  const { domain } = req.body || {};
+
+  if (!domain)
+    return reply.code(400).send({ error: "missing domain" });
+
+  const domains = removeDomain(domain);
+
+  console.log("[DOMAIN REMOVE]", domain);
+
+  return {
+    success: true,
+    domains
+  };
+});
+
+// ---------------- PROXY SYSTEM ----------------
 const proxy = (url, type = "application/javascript") => async (req, reply) => {
   try {
     const res = await fetch(url(req));
+
     if (!res.ok) return reply.code(res.status).send();
 
     const hop = [
@@ -87,6 +157,7 @@ const proxy = (url, type = "application/javascript") => async (req, reply) => {
       "upgrade",
       "content-encoding"
     ];
+
     for (const [k, v] of res.headers) {
       if (!hop.includes(k.toLowerCase())) reply.header(k, v);
     }
@@ -104,10 +175,23 @@ const proxy = (url, type = "application/javascript") => async (req, reply) => {
   }
 };
 
-app.get("/assets/img/*", proxy(req => `https://dogeub-assets.pages.dev/img/${req.params["*"]}`, ""));
-app.get("/assets-fb/*", proxy(req => `https://dogeub-assets.pages.dev/img/server/${req.params["*"]}`, ""));
-app.get("/js/script.js", proxy(() => "https://byod.privatedns.org/js/script.js"));
-app.get("/ds", (req, res) => res.redirect("https://discord.gg/ZBef7HnAeg"));
+// ---------------- ROUTES ----------------
+app.get("/assets/img/*", proxy(req =>
+  `https://dogeub-assets.pages.dev/img/${req.params["*"]}`, ""
+));
+
+app.get("/assets-fb/*", proxy(req =>
+  `https://dogeub-assets.pages.dev/img/server/${req.params["*"]}`, ""
+));
+
+app.get("/js/script.js", proxy(() =>
+  "https://byod.privatedns.org/js/script.js"
+));
+
+app.get("/ds", (req, res) =>
+  res.redirect("https://discord.gg/ZBef7HnAeg")
+);
+
 app.get("/return", async (req, reply) =>
   req.query?.q
     ? fetch(`https://duckduckgo.com/ac/?q=${encodeURIComponent(req.query.q)}`)
@@ -116,11 +200,16 @@ app.get("/return", async (req, reply) =>
     : reply.code(401).send({ error: "query parameter?" })
 );
 
+// ---------------- 404 ----------------
 app.setNotFoundHandler((req, reply) =>
   req.raw.method === "GET" && req.headers.accept?.includes("text/html")
     ? reply.sendFile("index.html")
     : reply.code(404).send({ error: "Not Found" })
 );
 
+// ---------------- START ----------------
 const host = process.env.HOST || "0.0.0.0";
-app.listen({ port, host }).then(() => console.log(`Server running on ${port}`));
+
+app.listen({ port, host }).then(() =>
+  console.log(`Server running on ${port}`)
+);
