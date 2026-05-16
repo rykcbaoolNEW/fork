@@ -4,7 +4,7 @@
   "version": "5.0.42",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node server.js\"",
+    "dev": "concurrently \"vite\" \"node src/dashboard.js\""
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
