@@ -5,8 +5,6 @@ import Nav from "../layouts/Nav";
 import Footer from "../components/Footer";
 
 import { auth, db } from "../firebase/firebase";
-
-
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -39,9 +37,10 @@ const Login = () => {
 
   const textColor = options.siteTextColor ?? "#a0b0c8";
 
+  /* ================= AUTO REDIRECT IF LOGGED IN ================= */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      if (user && !user.isAnonymous) {
+      if (user) {
         navigate("/");
       }
     });
@@ -49,16 +48,26 @@ const Login = () => {
     return () => unsub();
   }, [navigate]);
 
+  /* ================= AUTH HANDLER ================= */
   const handleAuth = async () => {
+    if (loading) return;
     setLoading(true);
 
     try {
       await setPersistence(auth, browserLocalPersistence);
 
-      const email = `${username}@gmail.com`;
+      // ⚠️ still using pseudo-email system (better: real email later)
+      const email = `${username}@app.local`;
 
-      /* ---------------- REGISTER ---------------- */
+      /* ================= REGISTER ================= */
       if (isRegister) {
+        if (!username || !password) {
+          alert("Fill all fields");
+          setLoading(false);
+          return;
+        }
+
+        // check username uniqueness (NOT fully secure but OK for now)
         const q = query(
           collection(db, "users"),
           where("username", "==", username)
@@ -80,35 +89,27 @@ const Login = () => {
 
         const user = result.user;
 
-        // ✅ create full profile safely
-        await createUserIfMissing(user.uid, username);
-
-        // optional extra fields (safe merge)
-        await setDoc(
-          doc(db, "users", user.uid),
-          {
-            username,
-            email,
-            lastLogin: Date.now(),
-          },
-          { merge: true }
-        );
-
-        localStorage.setItem("username", username);
+        await setDoc(doc(db, "users", user.uid), {
+          username,
+          email,
+          createdAt: Date.now(),
+          lastLogin: Date.now(),
+          role: "user",
+        });
 
         navigate("/");
       }
 
-      /* ---------------- LOGIN ---------------- */
+      /* ================= LOGIN ================= */
       else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const result = await signInWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
 
-        const user = auth.currentUser;
+        const user = result.user;
 
-        // ensure profile exists
-        await createUserIfMissing(user.uid, username);
-
-        // update last login
         await setDoc(
           doc(db, "users", user.uid),
           {
@@ -116,10 +117,6 @@ const Login = () => {
           },
           { merge: true }
         );
-
-        localStorage.setItem("username", username);
-
-        alert("Logged in successfully");
 
         navigate("/");
       }
@@ -130,6 +127,7 @@ const Login = () => {
     setLoading(false);
   };
 
+  /* ================= UI ================= */
   return (
     <>
       <Nav />
@@ -180,7 +178,7 @@ const Login = () => {
           />
 
           <div style={{ fontSize: "12px", opacity: 0.7, marginBottom: 10 }}>
-            Warning! Settings sync across devices using Firebase.
+            Warning: Data is synced using Firebase
           </div>
 
           <button onClick={handleAuth} style={buttonStyle}>
@@ -213,6 +211,7 @@ const Login = () => {
   );
 };
 
+/* ================= STYLES ================= */
 const inputStyle = {
   width: "100%",
   padding: "12px",
@@ -234,6 +233,5 @@ const buttonStyle = {
   cursor: "pointer",
   fontSize: "14px",
 };
-
 
 export default Login;
