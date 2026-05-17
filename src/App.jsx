@@ -3,6 +3,7 @@ import ReactGA from 'react-ga4';
 import Search from './pages/Search';
 import lazyLoad from './lazyWrapper';
 import NotFound from './pages/NotFound';
+
 import { useEffect, useMemo, memo, useState } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 
@@ -22,7 +23,6 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
-/* ================= ADMIN CHECK ================= */
 import { isAdmin } from "./utils/isAdmin";
 
 /* ================= LAZY PAGES ================= */
@@ -55,8 +55,8 @@ function useTracking() {
 /* ================= MAIN APP ================= */
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
-
   const location = useLocation();
+
   const domain = window.location.hostname;
 
   const [user, setUser] = useState(null);
@@ -68,6 +68,8 @@ const ThemedApp = memo(() => {
   const [inputPassword, setInputPassword] = useState("");
   const [error, setError] = useState("");
 
+  const isAdminRoute = location.pathname === "/admin";
+
   const popunderEnabled = POPUNDER_ENABLED === 'true';
   const adKeyPassed = usePopunderStore((s) => s.adKeyPassed);
   const setAdKeyPassed = usePopunderStore((s) => s.setAdKeyPassed);
@@ -75,9 +77,7 @@ const ThemedApp = memo(() => {
   useReg();
   useTracking();
 
-  const isAdminRoute = location.pathname === "/admin";
-
-  /* ================= AUTH ================= */
+  /* ================= AUTH (HOOK) ================= */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -112,55 +112,52 @@ const ThemedApp = memo(() => {
     load();
   }, [domain]);
 
-  /* ================= ADMIN ROUTE (HIGHEST PRIORITY) ================= */
-  if (!loadingAuth && isAdminRoute) {
-    if (!isAdmin(user)) {
-      return <Navigate to="/" />;
-    }
+  /* ================= POPUNDER ================= */
+  useEffect(() => {
+    let cancelled = false;
 
-    return <Admin />;
-  }
+    const run = async () => {
+      const key =
+        options.adKeyInput?.trim() ||
+        options.adKey?.trim() ||
+        '';
 
-  /* ================= LOADING ================= */
-  if (loadingAuth) return <div>Loading...</div>;
-  if (!domainConfig) return <div>Loading site...</div>;
+      if (!key) {
+        if (!cancelled) setAdKeyPassed(false);
+        return;
+      }
 
-  /* ================= PASSWORD UNLOCK ================= */
+      const valid = await validateAdKey(key);
+      if (cancelled) return;
+
+      setAdKeyPassed(valid);
+
+      if (valid && options.adKey !== key) {
+        updateOption({ adKey: key, adKeyInput: key });
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [options.adKey, options.adKeyInput]);
+
+  /* ================= PASSWORD CHECK ================= */
   async function unlock() {
     const snap = await getDoc(doc(db, "links", domain));
 
-    if (snap.exists()) {
-      const data = snap.data();
+    if (!snap.exists()) return;
 
-      if (data.passwordEnabled) {
-        // simple check (you can upgrade to hash later)
-        if (inputPassword === data.passwordHash || inputPassword === data.passwordPlain) {
-          setDomainUnlocked(true);
-          setError("");
-        } else {
-          setError("Wrong password");
-        }
-      }
+    const data = snap.data();
+
+    if (inputPassword === data.passwordHash) {
+      setDomainUnlocked(true);
+      setError("");
+    } else {
+      setError("Wrong password");
     }
-  }
-
-  /* ================= PASSWORD GATE ================= */
-  if (domainConfig.passwordEnabled && !domainUnlocked) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h2>Protected Link</h2>
-
-        <input
-          type="password"
-          value={inputPassword}
-          onChange={(e) => setInputPassword(e.target.value)}
-        />
-
-        <button onClick={unlock}>Unlock</button>
-
-        {error && <p style={{ color: "red" }}>{error}</p>}
-      </div>
-    );
   }
 
   /* ================= ROUTES ================= */
@@ -194,6 +191,36 @@ const ThemedApp = memo(() => {
       }
     `;
   }, [options]);
+
+  /* ================= SAFE RENDER FLOW ================= */
+
+  if (loadingAuth) return <div>Loading...</div>;
+  if (!domainConfig) return <div>Loading site...</div>;
+
+  /* ================= ADMIN ROUTE (SAFE HERE) ================= */
+  if (isAdminRoute) {
+    if (!isAdmin(user)) return <Navigate to="/" />;
+    return <Admin />;
+  }
+
+  /* ================= PASSWORD GATE ================= */
+  if (domainConfig.passwordEnabled && !domainUnlocked) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>Protected Link</h2>
+
+        <input
+          type="password"
+          value={inputPassword}
+          onChange={(e) => setInputPassword(e.target.value)}
+        />
+
+        <button onClick={unlock}>Unlock</button>
+
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
+    );
+  }
 
   /* ================= MAIN APP ================= */
   return (
