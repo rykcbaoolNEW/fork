@@ -55,6 +55,15 @@ const ThemedApp = memo(() => {
   const adKeyPassed = usePopunderStore((s) => s.adKeyPassed);
   const setAdKeyPassed = usePopunderStore((s) => s.setAdKeyPassed);
 
+  const [domainConfig, setDomainConfig] = useState(null);
+  const [domainUnlocked, setDomainUnlocked] = useState(false);
+  const [domainPassword, setDomainPassword] = useState("");
+  const [domainError, setDomainError] = useState("");
+  
+  import { doc, getDoc } from "firebase/firestore";
+  import { db } from "./firebase/firebase";
+  import { hash } from "./utils/hash";
+
   useReg();
   useTracking();
 
