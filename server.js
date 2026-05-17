@@ -84,15 +84,20 @@ if (process.env.MASQR === "true") {
 
 
 // load blocked domains
-let BLOCKED = [
-  "https://test.rykiscool.org/"
-];
+
+let BLOCKED = [];
+
 try {
   BLOCKED = JSON.parse(
     fs.readFileSync(join(__dirname, "blocked.json"), "utf-8")
   );
-} catch {
-  console.log("No blocked.json found, allowing all domains");
+
+  if (!Array.isArray(BLOCKED)) {
+    console.log("blocked.json must be an array");
+    BLOCKED = [];
+  }
+} catch (err) {
+  console.log("blocked.json not found or invalid, using empty list");
 }
 
 function isAllowedDomain(domain) {
