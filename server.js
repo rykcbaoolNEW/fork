@@ -81,9 +81,7 @@ if (process.env.MASQR === "true") {
   app.addHook("onRequest", MasqrMiddleware);
 }
 
-/* =========================
-   TLS CHECK (FOR CADDY)
-========================= */
+
 
 // load blocked domains
 let BLOCKED = [];
@@ -96,10 +94,10 @@ try {
 }
 
 function isAllowedDomain(domain) {
-  // ❌ blocklist mode
+  //  blocklist mode
   if (BLOCKED.includes(domain)) return false;
 
-  // ✅ OPTIONAL: switch to allowlist (recommended)
+
   // return domain.endsWith(".rykiscool.org");
 
   return true;
@@ -130,9 +128,7 @@ app.get("/tls-check", async (req, reply) => {
   return reply.code(200).send();
 });
 
-/* =========================
-   PROXY ROUTES
-========================= */
+
 
 const proxy = (url, type = "application/javascript") => async (req, reply) => {
   try {
@@ -184,19 +180,11 @@ app.get("/return", async (req, reply) =>
     : reply.code(401).send({ error: "query parameter?" })
 );
 
-/* =========================
-   FALLBACK
-========================= */
-
 app.setNotFoundHandler((req, reply) =>
   req.raw.method === "GET" && req.headers.accept?.includes("text/html")
     ? reply.sendFile("index.html")
     : reply.code(404).send({ error: "Not Found" })
 );
-
-/* =========================
-   START SERVER
-========================= */
 
 app.listen({ port, host }).then(() => {
   console.log(`Server running on http://${host}:${port}`);
