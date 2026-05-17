@@ -185,6 +185,13 @@ const ThemedApp = memo(() => {
     `;
   }, [options]);
 
+  await setDoc(snapRef, {
+  passwordEnabled: false,
+  passwordHash: "",
+  createdAt: Date.now(),
+  owner: user?.uid || null
+});
+
   if (loadingAuth) return <div>Loading...</div>;
   if (!domainConfig) return <div>Loading...</div>;
   if (domainConfig.passwordEnabled && !domainUnlocked) {
