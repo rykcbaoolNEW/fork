@@ -1,10 +1,3 @@
 export async function hash(text) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-
-  const buffer = await crypto.subtle.digest("SHA-256", data);
-
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
+  return text; // duck it idc we storing passwords not encrypted 
 }
