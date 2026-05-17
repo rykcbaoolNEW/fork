@@ -38,6 +38,13 @@
       "disabled": false
     },
     {
+        "appName": "Poki",
+        "desc": "Poki i guess",
+        "icon": "https://a.poki-cdn.com/img/favicon.ico",
+        "url": "https://poki.com/",
+        "disabled": false
+    },
+    {
       "appName": "Crazyapps",
       "desc": "Play free browser games instantly, no install.",
       "icon": "https://play-lh.googleusercontent.com/91TVBW8CFsOsbh7r3Y-kACNVYely0I7C-UcYP3-Jw-_MHCtfa_18i_4L7ozvGMoI9bk",
