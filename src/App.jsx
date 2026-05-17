@@ -15,6 +15,10 @@ import { validateAdKey } from './utils/hooks/popunder/validateAdKey';
 import './index.css';
 import 'nprogress/nprogress.css';
 
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "./firebase/firebase";
+import { hash } from "./utils/hash";
+
 import { auth } from './firebase/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -47,6 +51,7 @@ function useTracking() {
 /* ================= THEMED APP ================= */
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
+  const domain = window.location.hostname;
 
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -60,12 +65,23 @@ const ThemedApp = memo(() => {
   const [domainPassword, setDomainPassword] = useState("");
   const [domainError, setDomainError] = useState("");
   
-  import { doc, getDoc } from "firebase/firestore";
-  import { db } from "./firebase/firebase";
-  import { hash } from "./utils/hash";
 
   useReg();
   useTracking();
+
+  async function unlockDomain() {
+  const inputHash = await hash(domainPassword);
+
+  if (
+    domainConfig.passwordHash &&
+    inputHash === domainConfig.passwordHash
+  ) {
+    setDomainUnlocked(true);
+    setDomainError("");
+  } else {
+    setDomainError("Wrong password");
+  }
+}
 
   /* AUTH */
   useEffect(() => {
@@ -76,6 +92,22 @@ const ThemedApp = memo(() => {
 
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+  const load = async () => {
+    const snap = await getDoc(doc(db, "domains", domain));
+
+    if (!snap.exists()) {
+      // default = no protection
+      setDomainConfig({ passwordEnabled: false });
+      return;
+    }
+
+    setDomainConfig(snap.data());
+  };
+
+  load();
+}, [domain]);
 
   /* POPUNDER VALIDATION */
   useEffect(() => {
@@ -119,7 +151,7 @@ const ThemedApp = memo(() => {
       { path: '/search', element: <Search /> },
       { path: '/settings', element: <Settings /> },
       { path: '/login', element: <Login /> },
-      { path: '/profile', element: <Profile /> }, // 👈 added
+      { path: '/profile', element: <Profile /> },
       { path: '*', element: <NotFound /> },
     ],
     []
@@ -144,7 +176,28 @@ const ThemedApp = memo(() => {
     `;
   }, [options]);
 
-  if (loadingAuth) return null;
+  if (loadingAuth) return <div>Loading...</div>;
+  if (!domainConfig) return <div>Loading...</div>;
+  if (domainConfig.passwordEnabled && !domainUnlocked) {
+  return (
+    <div style={{ padding: 20 }}>
+      <h2>This domain is protected</h2>
+
+      <input
+        type="password"
+        value={domainPassword}
+        onChange={(e) => setDomainPassword(e.target.value)}
+        placeholder="Enter password"
+      />
+
+      <button onClick={unlockDomain}>
+        Unlock
+      </button>
+
+      {domainError && <p style={{ color: "red" }}>{domainError}</p>}
+    </div>
+  );
+}
 
   return (
     <>
@@ -155,7 +208,7 @@ const ThemedApp = memo(() => {
   );
 });
 
-ThemedApp.displayName = 'ThemedApp';
+
 
 /* ================= APP WRAPPER ================= */
 const App = () => {
