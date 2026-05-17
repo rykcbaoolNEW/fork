@@ -4,7 +4,7 @@ import Search from './pages/Search';
 import lazyLoad from './lazyWrapper';
 import NotFound from './pages/NotFound';
 import { useEffect, useMemo, memo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 
 import Popunder from './components/Popunder';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
@@ -15,16 +15,15 @@ import useReg from './utils/hooks/loader/useReg';
 import usePopunderStore from './utils/hooks/popunder/usePopunderStore';
 import { validateAdKey } from './utils/hooks/popunder/validateAdKey';
 
-import { isAdmin } from "./utils/isAdmin";
-import { Navigate } from "react-router-dom";
-
 import './index.css';
 import 'nprogress/nprogress.css';
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "./firebase/firebase";
-import { hash } from "./utils/hash";
 import { onAuthStateChanged } from "firebase/auth";
+
+/* ================= ADMIN CHECK ================= */
+import { isAdmin } from "./utils/isAdmin";
 
 /* ================= LAZY PAGES ================= */
 const Login = lazyLoad(() => import('./pages/login'));
@@ -57,17 +56,14 @@ function useTracking() {
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
 
+  const location = useLocation();
   const domain = window.location.hostname;
 
-  const [loadingAuth, setLoadingAuth] = useState(true);
   const [user, setUser] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   const [domainConfig, setDomainConfig] = useState(null);
   const [domainUnlocked, setDomainUnlocked] = useState(false);
-
-  const [setupMode, setSetupMode] = useState(false);
-  const [passwordEnabled, setPasswordEnabled] = useState(false);
-  const [password, setPassword] = useState("");
 
   const [inputPassword, setInputPassword] = useState("");
   const [error, setError] = useState("");
@@ -79,6 +75,8 @@ const ThemedApp = memo(() => {
   useReg();
   useTracking();
 
+  const isAdminRoute = location.pathname === "/admin";
+
   /* ================= AUTH ================= */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -89,7 +87,7 @@ const ThemedApp = memo(() => {
     return () => unsub();
   }, []);
 
-  /* ================= LOAD OR CREATE LINK ================= */
+  /* ================= LOAD DOMAIN ================= */
   useEffect(() => {
     const load = async () => {
       const ref = doc(db, "links", domain);
@@ -105,110 +103,78 @@ const ThemedApp = memo(() => {
 
         await setDoc(ref, newData);
         setDomainConfig(newData);
-        setSetupMode(true);
         return;
       }
 
-      const data = snap.data();
-
-      setDomainConfig(data);
-
-      if (!data.owner) {
-        setSetupMode(true);
-      }
+      setDomainConfig(snap.data());
     };
 
     load();
   }, [domain]);
 
-  /* ================= SAVE SETUP ================= */
-  async function saveSetup() {
-    const ref = doc(db, "links", domain);
+  /* ================= ADMIN ROUTE (HIGHEST PRIORITY) ================= */
+  if (!loadingAuth && isAdminRoute) {
+    if (!isAdmin(user)) {
+      return <Navigate to="/" />;
+    }
 
-    await setDoc(ref, {
-      passwordEnabled,
-      passwordHash: passwordEnabled ? await hash(password) : "",
-      owner: user?.uid || "anonymous"
-    }, { merge: true });
-
-    setDomainConfig({
-      ...domainConfig,
-      passwordEnabled,
-      passwordHash: passwordEnabled ? await hash(password) : "",
-      owner: user?.uid || "anonymous"
-    });
-
-    setSetupMode(false);
+    return <Admin />;
   }
 
-  /* ================= UNLOCK ================= */
-  async function unlock() {
-    const inputHash = await hash(inputPassword);
+  /* ================= LOADING ================= */
+  if (loadingAuth) return <div>Loading...</div>;
+  if (!domainConfig) return <div>Loading site...</div>;
 
-    if (
-      domainConfig.passwordHash &&
-      inputHash === domainConfig.passwordHash
-    ) {
-      setDomainUnlocked(true);
-      setError("");
-    } else {
-      setError("Wrong password");
+  /* ================= PASSWORD UNLOCK ================= */
+  async function unlock() {
+    const snap = await getDoc(doc(db, "links", domain));
+
+    if (snap.exists()) {
+      const data = snap.data();
+
+      if (data.passwordEnabled) {
+        // simple check (you can upgrade to hash later)
+        if (inputPassword === data.passwordHash || inputPassword === data.passwordPlain) {
+          setDomainUnlocked(true);
+          setError("");
+        } else {
+          setError("Wrong password");
+        }
+      }
     }
   }
 
-  /* ================= POPUNDER ================= */
-  useEffect(() => {
-    let cancelled = false;
+  /* ================= PASSWORD GATE ================= */
+  if (domainConfig.passwordEnabled && !domainUnlocked) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>Protected Link</h2>
 
-    const run = async () => {
-      const key =
-        options.adKeyInput?.trim() ||
-        options.adKey?.trim() ||
-        '';
+        <input
+          type="password"
+          value={inputPassword}
+          onChange={(e) => setInputPassword(e.target.value)}
+        />
 
-      if (!key) {
-        if (!cancelled) setAdKeyPassed(false);
-        return;
-      }
+        <button onClick={unlock}>Unlock</button>
 
-      const valid = await validateAdKey(key);
-      if (cancelled) return;
-
-      setAdKeyPassed(valid);
-
-      if (valid && options.adKey !== key) {
-        updateOption({ adKey: key, adKeyInput: key });
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [options.adKey, options.adKeyInput]);
+        {error && <p style={{ color: "red" }}>{error}</p>}
+      </div>
+    );
+  }
 
   /* ================= ROUTES ================= */
- const pages = useMemo(() => [
-  { path: '/', element: <Home /> },
-  { path: '/materials', element: <Apps /> },
-  { path: '/docs', element: <Apps2 /> },
-  { path: '/docs/r', element: <Player /> },
-  { path: '/search', element: <Search /> },
-  { path: '/settings', element: <Settings /> },
-  { path: '/login', element: <Login /> },
-  { path: '/profile', element: <Profile /> },
-
-  // admin :uwu:
-  {
-    path: '/admin',
-    element: isAdmin()
-      ? <Admin />
-      : <Navigate to="/" replace />
-  },
-
-  { path: '*', element: <NotFoundPage /> },
-], []);
+  const pages = useMemo(() => [
+    { path: '/', element: <Home /> },
+    { path: '/materials', element: <Apps /> },
+    { path: '/docs', element: <Apps2 /> },
+    { path: '/docs/r', element: <Player /> },
+    { path: '/search', element: <Search /> },
+    { path: '/settings', element: <Settings /> },
+    { path: '/login', element: <Login /> },
+    { path: '/profile', element: <Profile /> },
+    { path: '*', element: <NotFoundPage /> },
+  ], []);
 
   /* ================= BACKGROUND ================= */
   const backgroundStyle = useMemo(() => {
@@ -228,65 +194,6 @@ const ThemedApp = memo(() => {
       }
     `;
   }, [options]);
-
-  /* ================= LOADING ================= */
-  if (loadingAuth) return <div>Loading...</div>;
-  if (!domainConfig) return <div>Loading site...</div>;
-
-  /* ================= SETUP SCREEN ================= */
-  if (setupMode) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h2>Setup this link</h2>
-
-        <label>
-          <input
-            type="checkbox"
-            checked={passwordEnabled}
-            onChange={(e) => setPasswordEnabled(e.target.checked)}
-          />
-          Enable password
-        </label>
-
-        {passwordEnabled && (
-          <input
-            type="password"
-            placeholder="Set password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        )}
-
-        <button onClick={saveSetup}>
-          Save
-        </button>
-      </div>
-    );
-  }
-
-  /* ================= PASSWORD GATE ================= */
-  if (domainConfig.passwordEnabled && !domainUnlocked) {
-    return (
-      <div style={{ padding: 20 }}>
-        <h2>Protected Link</h2>
-
-        <input
-          type="password"
-          value={inputPassword}
-          onChange={(e) => {
-            setInputPassword(e.target.value);
-            setError("");
-          }}
-        />
-
-        <button onClick={unlock}>
-          Unlock
-        </button>
-
-        {error && <p style={{ color: "red" }}>{error}</p>}
-      </div>
-    );
-  }
 
   /* ================= MAIN APP ================= */
   return (
