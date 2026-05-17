@@ -218,7 +218,9 @@ const ThemedApp = memo(() => {
         <button onClick={unlock}>Unlock</button>
 
         {error && <p style={{ color: "red" }}>{error}</p>}
+        <style>{backgroundStyle}</style>
       </div>
+      
     );
   }
 
