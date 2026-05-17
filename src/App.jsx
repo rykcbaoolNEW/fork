@@ -5,26 +5,28 @@ import lazyLoad from './lazyWrapper';
 import NotFound from './pages/NotFound';
 import { useEffect, useMemo, memo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+
 import Popunder from './components/Popunder';
 import { OptionsProvider, useOptions } from './utils/optionsContext';
 import { initPreload } from './utils/preload';
 import { designConfig as bgDesign } from './utils/config';
+
 import useReg from './utils/hooks/loader/useReg';
 import usePopunderStore from './utils/hooks/popunder/usePopunderStore';
 import { validateAdKey } from './utils/hooks/popunder/validateAdKey';
+
 import './index.css';
 import 'nprogress/nprogress.css';
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "./firebase/firebase";
+import { db, auth } from "./firebase/firebase";
 import { hash } from "./utils/hash";
-
-import { auth } from './firebase/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from "firebase/auth";
 
 /* ================= LAZY PAGES ================= */
 const Login = lazyLoad(() => import('./pages/login'));
 const Profile = lazyLoad(() => import('./pages/Profile'));
+
 const Home = lazyLoad(() => import('./pages/Home'));
 const Apps = lazyLoad(() => import('./pages/Apps'));
 const Apps2 = lazyLoad(() => import('./pages/Apps2'));
@@ -47,19 +49,24 @@ function useTracking() {
   }, [location]);
 }
 
-/* ================= THEMED APP ================= */
+/* ================= MAIN APP ================= */
 const ThemedApp = memo(() => {
   const { options, updateOption } = useOptions();
 
   const domain = window.location.hostname;
 
-  const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [user, setUser] = useState(null);
 
   const [domainConfig, setDomainConfig] = useState(null);
   const [domainUnlocked, setDomainUnlocked] = useState(false);
-  const [domainPassword, setDomainPassword] = useState("");
-  const [domainError, setDomainError] = useState("");
+
+  const [setupMode, setSetupMode] = useState(false);
+  const [passwordEnabled, setPasswordEnabled] = useState(false);
+  const [password, setPassword] = useState("");
+
+  const [inputPassword, setInputPassword] = useState("");
+  const [error, setError] = useState("");
 
   const popunderEnabled = POPUNDER_ENABLED === 'true';
   const adKeyPassed = usePopunderStore((s) => s.adKeyPassed);
@@ -78,11 +85,11 @@ const ThemedApp = memo(() => {
     return () => unsub();
   }, []);
 
-  /* ================= LOAD / AUTO CREATE LINK ================= */
+  /* ================= LOAD OR CREATE LINK ================= */
   useEffect(() => {
     const load = async () => {
-      const snapRef = doc(db, "links", domain);
-      const snap = await getDoc(snapRef);
+      const ref = doc(db, "links", domain);
+      const snap = await getDoc(ref);
 
       if (!snap.exists()) {
         const newData = {
@@ -92,33 +99,60 @@ const ThemedApp = memo(() => {
           owner: null
         };
 
-        await setDoc(snapRef, newData);
+        await setDoc(ref, newData);
         setDomainConfig(newData);
+        setSetupMode(true);
         return;
       }
 
-      setDomainConfig(snap.data());
+      const data = snap.data();
+
+      setDomainConfig(data);
+
+      if (!data.owner) {
+        setSetupMode(true);
+      }
     };
 
     load();
   }, [domain]);
 
-  /* ================= PASSWORD UNLOCK ================= */
-  async function unlockDomain() {
-    const inputHash = await hash(domainPassword);
+  /* ================= SAVE SETUP ================= */
+  async function saveSetup() {
+    const ref = doc(db, "links", domain);
+
+    await setDoc(ref, {
+      passwordEnabled,
+      passwordHash: passwordEnabled ? await hash(password) : "",
+      owner: user?.uid || "anonymous"
+    }, { merge: true });
+
+    setDomainConfig({
+      ...domainConfig,
+      passwordEnabled,
+      passwordHash: passwordEnabled ? await hash(password) : "",
+      owner: user?.uid || "anonymous"
+    });
+
+    setSetupMode(false);
+  }
+
+  /* ================= UNLOCK ================= */
+  async function unlock() {
+    const inputHash = await hash(inputPassword);
 
     if (
-      domainConfig?.passwordHash &&
+      domainConfig.passwordHash &&
       inputHash === domainConfig.passwordHash
     ) {
       setDomainUnlocked(true);
-      setDomainError("");
+      setError("");
     } else {
-      setDomainError("Wrong password");
+      setError("Wrong password");
     }
   }
 
-  /* ================= POPUNDER VALIDATION ================= */
+  /* ================= POPUNDER ================= */
   useEffect(() => {
     let cancelled = false;
 
@@ -182,35 +216,66 @@ const ThemedApp = memo(() => {
     `;
   }, [options]);
 
-  /* ================= LOADING STATES ================= */
-  if (loadingAuth) return <div>Loading auth...</div>;
+  /* ================= LOADING ================= */
+  if (loadingAuth) return <div>Loading...</div>;
   if (!domainConfig) return <div>Loading site...</div>;
+
+  /* ================= SETUP SCREEN ================= */
+  if (setupMode) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h2>Setup this link</h2>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={passwordEnabled}
+            onChange={(e) => setPasswordEnabled(e.target.checked)}
+          />
+          Enable password
+        </label>
+
+        {passwordEnabled && (
+          <input
+            type="password"
+            placeholder="Set password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        )}
+
+        <button onClick={saveSetup}>
+          Save
+        </button>
+      </div>
+    );
+  }
 
   /* ================= PASSWORD GATE ================= */
   if (domainConfig.passwordEnabled && !domainUnlocked) {
     return (
       <div style={{ padding: 20 }}>
-        <h2>This site is protected</h2>
+        <h2>Protected Link</h2>
 
         <input
           type="password"
-          value={domainPassword}
+          value={inputPassword}
           onChange={(e) => {
-            setDomainPassword(e.target.value);
-            setDomainError("");
+            setInputPassword(e.target.value);
+            setError("");
           }}
-          placeholder="Enter password"
         />
 
-        <button onClick={unlockDomain}>
+        <button onClick={unlock}>
           Unlock
         </button>
 
-        {domainError && <p style={{ color: "red" }}>{domainError}</p>}
+        {error && <p style={{ color: "red" }}>{error}</p>}
       </div>
     );
   }
 
+  /* ================= MAIN APP ================= */
   return (
     <>
       <Routing pages={pages} />
@@ -220,7 +285,7 @@ const ThemedApp = memo(() => {
   );
 });
 
-/* ================= APP WRAPPER ================= */
+/* ================= WRAPPER ================= */
 export default function App() {
   return (
     <OptionsProvider>
