@@ -3,6 +3,7 @@ import ReactGA from 'react-ga4';
 import Search from './pages/Search';
 import lazyLoad from './lazyWrapper';
 import NotFound from './pages/NotFound';
+import Backround from './layouts/Background';
 
 import { useEffect, useMemo, memo, useState } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
