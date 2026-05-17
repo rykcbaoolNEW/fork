@@ -15,6 +15,9 @@ import useReg from './utils/hooks/loader/useReg';
 import usePopunderStore from './utils/hooks/popunder/usePopunderStore';
 import { validateAdKey } from './utils/hooks/popunder/validateAdKey';
 
+import { isAdmin } from "./utils/isAdmin";
+import { Navigate } from "react-router-dom";
+
 import './index.css';
 import 'nprogress/nprogress.css';
 
@@ -32,6 +35,7 @@ const Apps = lazyLoad(() => import('./pages/Apps'));
 const Apps2 = lazyLoad(() => import('./pages/Apps2'));
 const Settings = lazyLoad(() => import('./pages/Settings'));
 const Player = lazyLoad(() => import('./pages/Player'));
+const Admin = lazyLoad(() => import('./pages/Admin'));
 const NotFoundPage = NotFound;
 
 /* ================= PRELOAD ================= */
@@ -185,17 +189,26 @@ const ThemedApp = memo(() => {
   }, [options.adKey, options.adKeyInput]);
 
   /* ================= ROUTES ================= */
-  const pages = useMemo(() => [
-    { path: '/', element: <Home /> },
-    { path: '/materials', element: <Apps /> },
-    { path: '/docs', element: <Apps2 /> },
-    { path: '/docs/r', element: <Player /> },
-    { path: '/search', element: <Search /> },
-    { path: '/settings', element: <Settings /> },
-    { path: '/login', element: <Login /> },
-    { path: '/profile', element: <Profile /> },
-    { path: '*', element: <NotFoundPage /> },
-  ], []);
+ const pages = useMemo(() => [
+  { path: '/', element: <Home /> },
+  { path: '/materials', element: <Apps /> },
+  { path: '/docs', element: <Apps2 /> },
+  { path: '/docs/r', element: <Player /> },
+  { path: '/search', element: <Search /> },
+  { path: '/settings', element: <Settings /> },
+  { path: '/login', element: <Login /> },
+  { path: '/profile', element: <Profile /> },
+
+  // admin :uwu:
+  {
+    path: '/admin',
+    element: isAdmin()
+      ? <Admin />
+      : <Navigate to="/" replace />
+  },
+
+  { path: '*', element: <NotFoundPage /> },
+], []);
 
   /* ================= BACKGROUND ================= */
   const backgroundStyle = useMemo(() => {
