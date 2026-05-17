@@ -84,7 +84,9 @@ if (process.env.MASQR === "true") {
 
 
 // load blocked domains
-let BLOCKED = [];
+let BLOCKED = [
+  "https://test.rykiscool.org/"
+];
 try {
   BLOCKED = JSON.parse(
     fs.readFileSync(join(__dirname, "blocked.json"), "utf-8")
