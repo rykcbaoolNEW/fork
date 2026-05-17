@@ -207,22 +207,24 @@ const ThemedApp = memo(() => {
   /* ================= PASSWORD GATE ================= */
   if (domainConfig.passwordEnabled && !domainUnlocked) {
     return (
-      <div style={{ padding: 20 }}>
-        <h2>Protected Link</h2>
+  <div style={{ padding: 20 }}>
+    <Background>
+      <h2>Protected Link</h2>
 
-        <input
-          type="password"
-          value={inputPassword}
-          onChange={(e) => setInputPassword(e.target.value)}
-        />
+      <input
+        type="password"
+        value={inputPassword}
+        onChange={(e) => setInputPassword(e.target.value)}
+      />
 
-        <button onClick={unlock}>Unlock</button>
+      <button onClick={unlock}>Unlock</button>
 
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        <style>{backgroundStyle}</style>
-      </div>
-      
-    );
+      {error && <p style={{ color: "red" }}>{error}</p>}
+    </Background>
+
+    <style>{backgroundStyle}</style>
+  </div>
+);
   }
 
   /* ================= MAIN APP ================= */
