@@ -95,11 +95,20 @@ const ThemedApp = memo(() => {
 
   useEffect(() => {
   const load = async () => {
-    const snap = await getDoc(doc(db, "domains", domain));
+    const snapRef = doc(db, "links", domain);
+    const snap = await getDoc(snapRef);
 
     if (!snap.exists()) {
-      // default = no protection
-      setDomainConfig({ passwordEnabled: false });
+      // AUTO CREATE NEW LINK why did i have caps on lol
+      const newData = {
+        passwordEnabled: false,
+        passwordHash: "",
+        createdAt: Date.now(),
+        owner: null
+      };
+
+      await setDoc(snapRef, newData);
+      setDomainConfig(newData);
       return;
     }
 
