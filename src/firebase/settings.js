@@ -13,16 +13,19 @@ export async function loadSettings(uid) {
   return snap.exists() ? snap.data().settings : {};
 }
 
-/* SAVE SETTINGS */
-export async function saveSettings(uid, settings) {
+/* SAVE SETTINGS + USERNAME */
+export async function saveSettings(uid, settings, username = null) {
   const cleaned = stripWispConfig(settings);
 
-  await setDoc(
-    doc(db, "users", uid),
-    {
-      settings: cleaned,
-      updatedAt: Date.now()
-    },
-    { merge: true }
-  );
+  const updateData = {
+    settings: cleaned,
+    updatedAt: Date.now()
+  };
+
+  // only store username if provided
+  if (username) {
+    updateData.username = username;
+  }
+
+  await setDoc(doc(db, "users", uid), updateData, { merge: true });
 }
