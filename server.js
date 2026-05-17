@@ -97,17 +97,20 @@ try {
     BLOCKED = [];
   }
 } catch (err) {
-  console.log("blocked.json not found or invalid, using empty list");
+  console.log("blocked.json not found or invalid");
 }
 
 function isAllowedDomain(domain) {
-  //  blocklist mode
-  if (BLOCKED.includes(domain)) return false;
+  domain = domain.toLowerCase();
 
+  return !BLOCKED.some(blocked => {
+    blocked = blocked.toLowerCase();
 
-  // return domain.endsWith(".rykiscool.org");
-
-  return true;
+    return (
+      domain === blocked ||
+      domain.endsWith("." + blocked)
+    );
+  });
 }
 
 app.get("/tls-check", async (req, reply) => {
