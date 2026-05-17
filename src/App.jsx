@@ -221,8 +221,6 @@ const ThemedApp = memo(() => {
 
       {error && <p style={{ color: "red" }}>{error}</p>}
     </Background>
-
-    <style>{backgroundStyle}</style>
   </div>
 );
   }
