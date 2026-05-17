@@ -32,19 +32,69 @@ Object.assign(wisp.options, {
   dns_result_order: "ipv4first"
 });
 
-server.on("upgrade", (req, sock, head) =>
-  bare?.shouldRoute(req)
-    ? bare.routeUpgrade(req, sock, head)
-    : req.url.endsWith("/wisp/")
-      ? wisp.routeRequest(req, sock, head)
-      : sock.end()
-);
+let BLOCKED = [];
+
+try {
+  BLOCKED = JSON.parse(
+    fs.readFileSync(join(__dirname, "blocked.json"), "utf-8")
+  );
+
+  if (!Array.isArray(BLOCKED)) {
+    console.log("blocked.json must be an array");
+    BLOCKED = [];
+  }
+} catch {
+  console.log("blocked.json not found or invalid");
+}
+
+function isAllowedDomain(domain) {
+  domain = (domain || "").toLowerCase();
+
+  return !BLOCKED.some((blocked) => {
+    blocked = blocked.toLowerCase();
+    return domain === blocked || domain.endsWith("." + blocked);
+  });
+}
+
+function checkUrlAllowed(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    const parsed = psl.parse(u.hostname);
+
+    if (parsed.error || !parsed.domain) return false;
+    return isAllowedDomain(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+server.on("upgrade", (req, sock, head) => {
+  const url = req.url || "";
+
+  // Try blocking websocket/bare/wisp targets
+  if (!isAllowedDomain(req.headers.host || "")) {
+    sock.destroy();
+    return;
+  }
+
+  if (bare?.shouldRoute(req)) {
+    return bare.routeUpgrade(req, sock, head);
+  }
+
+  if (url.endsWith("/wisp/")) {
+    return wisp.routeRequest(req, sock, head);
+  }
+
+  sock.end();
+});
+
 
 const app = Fastify({
-  serverFactory: h => (
-    server.on("request", (req, res) =>
-      bare?.shouldRoute(req) ? bare.routeRequest(req, res) : h(req, res)
-    ),
+  serverFactory: (h) => (
+    server.on("request", (req, res) => {
+      if (bare?.shouldRoute(req)) return bare.routeRequest(req, res);
+      h(req, res);
+    }),
     server
   ),
   logger: false,
@@ -83,51 +133,16 @@ if (process.env.MASQR === "true") {
 
 
 
-// load blocked domains
-
-let BLOCKED = [];
-
-try {
-  BLOCKED = JSON.parse(
-    fs.readFileSync(join(__dirname, "blocked.json"), "utf-8")
-  );
-
-  if (!Array.isArray(BLOCKED)) {
-    console.log("blocked.json must be an array");
-    BLOCKED = [];
-  }
-} catch (err) {
-  console.log("blocked.json not found or invalid");
-}
-
-function isAllowedDomain(domain) {
-  domain = domain.toLowerCase();
-
-  return !BLOCKED.some(blocked => {
-    blocked = blocked.toLowerCase();
-
-    return (
-      domain === blocked ||
-      domain.endsWith("." + blocked)
-    );
-  });
-}
-
 app.get("/tls-check", async (req, reply) => {
   const ip = req.ip === "::1" ? "127.0.0.1" : req.ip;
 
-  // only allow local requests (Caddy)
-  if (ip !== "127.0.0.1") {
-    return reply.code(403).send();
-  }
+  if (ip !== "127.0.0.1") return reply.code(403).send();
 
   const domain = (req.query?.domain || "").toLowerCase();
   if (!domain) return reply.code(403).send();
 
   const parsed = psl.parse(domain);
-  if (parsed.error || !parsed.domain) {
-    return reply.code(403).send();
-  }
+  if (parsed.error || !parsed.domain) return reply.code(403).send();
 
   if (!isAllowedDomain(domain)) {
     console.log("BLOCKED TLS:", domain);
@@ -140,42 +155,61 @@ app.get("/tls-check", async (req, reply) => {
 
 
 
-const proxy = (url, type = "application/javascript") => async (req, reply) => {
-  try {
-    const res = await fetch(url(req));
-    if (!res.ok) return reply.code(res.status).send();
+const proxy =
+  (url, type = "application/javascript") =>
+  async (req, reply) => {
+    try {
+      const target = new URL(url(req));
 
-    const hop = [
-      "connection",
-      "keep-alive",
-      "proxy-authenticate",
-      "proxy-authorization",
-      "te",
-      "trailer",
-      "transfer-encoding",
-      "upgrade",
-      "content-encoding"
-    ];
+      // 🔥 REAL BLOCKING HERE
+      if (!isAllowedDomain(target.hostname)) {
+        console.log("BLOCKED PROXY:", target.hostname);
+        return reply.code(403).send("Blocked domain");
+      }
 
-    for (const [k, v] of res.headers) {
-      if (!hop.includes(k.toLowerCase())) reply.header(k, v);
+      const res = await fetch(target);
+
+      if (!res.ok) return reply.code(res.status).send();
+
+      const hop = [
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "content-encoding"
+      ];
+
+      for (const [k, v] of res.headers) {
+        if (!hop.includes(k.toLowerCase())) reply.header(k, v);
+      }
+
+      const cookies = res.headers.getSetCookie?.();
+      if (cookies?.length) reply.header("set-cookie", cookies);
+
+      if (!res.headers.get("content-type")) reply.type(type);
+
+      return reply.send(res.body);
+    } catch {
+      return reply.code(500).send();
     }
+  };
 
-    if (res.headers.getSetCookie) {
-      const cookies = res.headers.getSetCookie();
-      if (cookies.length) reply.header("set-cookie", cookies);
-    }
 
-    if (!res.headers.get("content-type")) reply.type(type);
 
-    return reply.send(res.body);
-  } catch {
-    return reply.code(500).send();
-  }
-};
+app.get(
+  "/assets/img/*",
+  proxy((req) => `https://dogeub-assets.pages.dev/img/${req.params["*"]}`, "")
+);
 
-app.get("/assets/img/*", proxy(req => `https://dogeub-assets.pages.dev/img/${req.params["*"]}`, ""));
-app.get("/assets-fb/*", proxy(req => `https://dogeub-assets.pages.dev/img/server/${req.params["*"]}`, ""));
+app.get(
+  "/assets-fb/*",
+  proxy((req) => `https://dogeub-assets.pages.dev/img/server/${req.params["*"]}`, "")
+);
+
 app.get("/js/script.js", proxy(() => "https://byod.privatedns.org/js/script.js"));
 
 app.get("/ds", (req, res) =>
@@ -184,8 +218,10 @@ app.get("/ds", (req, res) =>
 
 app.get("/return", async (req, reply) =>
   req.query?.q
-    ? fetch(`https://duckduckgo.com/ac/?q=${encodeURIComponent(req.query.q)}`)
-        .then(r => r.json())
+    ? fetch(
+        `https://duckduckgo.com/ac/?q=${encodeURIComponent(req.query.q)}`
+      )
+        .then((r) => r.json())
         .catch(() => reply.code(500).send({ error: "request failed" }))
     : reply.code(401).send({ error: "query parameter?" })
 );
@@ -195,6 +231,7 @@ app.setNotFoundHandler((req, reply) =>
     ? reply.sendFile("index.html")
     : reply.code(404).send({ error: "Not Found" })
 );
+
 
 app.listen({ port, host }).then(() => {
   console.log(`Server running on http://${host}:${port}`);
