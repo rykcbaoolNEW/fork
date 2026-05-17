@@ -6,6 +6,9 @@ import fastifyCookie from "@fastify/cookie";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
+import fs from "node:fs";
+import psl from "psl";
+
 import { logging, server as wisp } from "@mercuryworkshop/wisp-js/server";
 import { createBareServer } from "@tomphttp/bare-server-node";
 import { MasqrMiddleware } from "./masqr.js";
@@ -16,8 +19,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const port = process.env.PORT || 1234;
+const host = process.env.HOST || "0.0.0.0";
+
 const server = createServer();
 const bare = process.env.BARE !== "false" ? createBareServer("/seal/") : null;
+
 logging.set_level(logging.NONE);
 
 Object.assign(wisp.options, {
@@ -48,7 +54,10 @@ const app = Fastify({
 });
 
 await app.register(fastifyCookie);
-await app.register(compress, { global: true, encodings: ['gzip','deflate','br'] });
+await app.register(compress, {
+  global: true,
+  encodings: ["gzip", "deflate", "br"]
+});
 
 app.register(fastifyStatic, {
   root: join(__dirname, "dist"),
@@ -68,8 +77,62 @@ app.register(fastifyStatic, {
   }
 });
 
-if (process.env.MASQR === "true")
+if (process.env.MASQR === "true") {
   app.addHook("onRequest", MasqrMiddleware);
+}
+
+/* =========================
+   TLS CHECK (FOR CADDY)
+========================= */
+
+// load blocked domains
+let BLOCKED = [];
+try {
+  BLOCKED = JSON.parse(
+    fs.readFileSync(join(__dirname, "blocked.json"), "utf-8")
+  );
+} catch {
+  console.log("No blocked.json found, allowing all domains");
+}
+
+function isAllowedDomain(domain) {
+  // ❌ blocklist mode
+  if (BLOCKED.includes(domain)) return false;
+
+  // ✅ OPTIONAL: switch to allowlist (recommended)
+  // return domain.endsWith(".rykiscool.org");
+
+  return true;
+}
+
+app.get("/tls-check", async (req, reply) => {
+  const ip = req.ip === "::1" ? "127.0.0.1" : req.ip;
+
+  // only allow local requests (Caddy)
+  if (ip !== "127.0.0.1") {
+    return reply.code(403).send();
+  }
+
+  const domain = (req.query?.domain || "").toLowerCase();
+  if (!domain) return reply.code(403).send();
+
+  const parsed = psl.parse(domain);
+  if (parsed.error || !parsed.domain) {
+    return reply.code(403).send();
+  }
+
+  if (!isAllowedDomain(domain)) {
+    console.log("BLOCKED TLS:", domain);
+    return reply.code(403).send();
+  }
+
+  console.log("ALLOWED TLS:", domain);
+  return reply.code(200).send();
+});
+
+/* =========================
+   PROXY ROUTES
+========================= */
 
 const proxy = (url, type = "application/javascript") => async (req, reply) => {
   try {
@@ -87,6 +150,7 @@ const proxy = (url, type = "application/javascript") => async (req, reply) => {
       "upgrade",
       "content-encoding"
     ];
+
     for (const [k, v] of res.headers) {
       if (!hop.includes(k.toLowerCase())) reply.header(k, v);
     }
@@ -107,7 +171,11 @@ const proxy = (url, type = "application/javascript") => async (req, reply) => {
 app.get("/assets/img/*", proxy(req => `https://dogeub-assets.pages.dev/img/${req.params["*"]}`, ""));
 app.get("/assets-fb/*", proxy(req => `https://dogeub-assets.pages.dev/img/server/${req.params["*"]}`, ""));
 app.get("/js/script.js", proxy(() => "https://byod.privatedns.org/js/script.js"));
-app.get("/ds", (req, res) => res.redirect("https://discord.gg/ZBef7HnAeg"));
+
+app.get("/ds", (req, res) =>
+  res.redirect("https://discord.gg/ZBef7HnAeg")
+);
+
 app.get("/return", async (req, reply) =>
   req.query?.q
     ? fetch(`https://duckduckgo.com/ac/?q=${encodeURIComponent(req.query.q)}`)
@@ -116,11 +184,20 @@ app.get("/return", async (req, reply) =>
     : reply.code(401).send({ error: "query parameter?" })
 );
 
+/* =========================
+   FALLBACK
+========================= */
+
 app.setNotFoundHandler((req, reply) =>
   req.raw.method === "GET" && req.headers.accept?.includes("text/html")
     ? reply.sendFile("index.html")
     : reply.code(404).send({ error: "Not Found" })
 );
 
-const host = process.env.HOST || "0.0.0.0";
-app.listen({ port, host }).then(() => console.log(`Server running on ${port}`));
+/* =========================
+   START SERVER
+========================= */
+
+app.listen({ port, host }).then(() => {
+  console.log(`Server running on http://${host}:${port}`);
+});
