@@ -189,7 +189,7 @@ export default defineConfig(({ command }) => {
       },
     },
     server: {
-      port: 1234,
+      port: 2345,
       strictPort: true,
       allowedHosts: true,
       proxy: {

@@ -37,7 +37,13 @@ const Login = () => {
 
   const textColor = options.siteTextColor ?? "#a0b0c8";
 
-  /* ================= AUTO REDIRECT IF LOGGED IN ================= */
+  const handleChange = (e) => {
+    const value = e.target.value;
+    setUsername(value);
+    localStorage.setItem("username", value);
+  };
+
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -48,7 +54,7 @@ const Login = () => {
     return () => unsub();
   }, [navigate]);
 
-  /* ================= AUTH HANDLER ================= */
+
   const handleAuth = async () => {
     if (loading) return;
     setLoading(true);
@@ -56,10 +62,10 @@ const Login = () => {
     try {
       await setPersistence(auth, browserLocalPersistence);
 
-      // ⚠️ still using pseudo-email system (better: real email later)
+
       const email = `${username}@app.local`;
 
-      /* ================= REGISTER ================= */
+      
       if (isRegister) {
         if (!username || !password) {
           alert("Fill all fields");
@@ -67,7 +73,7 @@ const Login = () => {
           return;
         }
 
-        // check username uniqueness (NOT fully secure but OK for now)
+        // check username uniqueness 
         const q = query(
           collection(db, "users"),
           where("username", "==", username)
@@ -100,7 +106,7 @@ const Login = () => {
         navigate("/");
       }
 
-      /* ================= LOGIN ================= */
+    
       else {
         const result = await signInWithEmailAndPassword(
           auth,
@@ -127,7 +133,7 @@ const Login = () => {
     setLoading(false);
   };
 
-  /* ================= UI ================= */
+
   return (
     <>
       <Nav />
@@ -163,11 +169,11 @@ const Login = () => {
           </h1>
 
           <input
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            style={inputStyle}
-          />
+             placeholder="Username"
+             value={username}
+             onChange={handleChange}
+             style={inputStyle}
+           />
 
           <input
             placeholder="Password"
@@ -211,7 +217,6 @@ const Login = () => {
   );
 };
 
-/* ================= STYLES ================= */
 const inputStyle = {
   width: "100%",
   padding: "12px",

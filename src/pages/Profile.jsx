@@ -8,6 +8,7 @@ export default function Profile() {
   useSecondSync();
 
   const [username, setUsername] = useState("");
+  const [user, setUser] = useState(null);
   const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function Profile() {
       <div style={wrap}>
         <div style={card}>
           <h1>Profile</h1>
+         
 
           <p>Username: {username}</p>
           <p>More coming soon...</p>

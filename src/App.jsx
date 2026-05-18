@@ -42,6 +42,7 @@ const NotFoundPage = NotFound;
 initPreload('/materials', () => import('./pages/Apps'));
 initPreload('/docs', () => import('./pages/Apps2'));
 initPreload('/settings', () => import('./pages/Settings'));
+initPreload('/admin', () => import('./pages/Admin'));
 initPreload('/', () => import('./pages/Home'));
 
 /* ================= TRACKING ================= */

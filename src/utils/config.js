@@ -257,7 +257,7 @@ export const meta = [
   {
     option: 'Default',
     value: {
-      tabName: `${pkg.version}-${__ENVIRONMENT__}`, // my school blocked all tabs that have "v5" in the title so like.
+      tabName: `${pkg.version}-${import.meta.env.MODE}`, // my school blocked all tabs that have "v5" in the title so like.
       tabIcon: './icon.svg',
     },
   },

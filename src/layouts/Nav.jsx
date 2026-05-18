@@ -10,7 +10,7 @@ import Logo from '../components/Logo';
 import { memo, useMemo, useCallback, useEffect, useState } from 'react';
 
 import { auth } from '../firebase/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const version = pkg.version;
 const itemSize = 16;
@@ -44,19 +44,28 @@ const Nav = memo(() => {
   );
 
   const handleLogoClick = useCallback(() => navigate('/'), [navigate]);
+  const signOut = async () => {
+    await auth.signOut();
+
+    setUser(null);
+    setUsername("");
+
+    localStorage.removeItem("username");
+    localStorage.removeItem("user");
+
+    navigate('/login');
+};
 
   const handleLogout = async () => {
-    await signOut(auth);
-    navigate('/');
+    await signOut();
   };
-
   const items = useMemo(() => {
     const baseItems = [
       { name: 'Apps', id: 'btn-a', type: LayoutGrid, route: '/materials' },
       { name: 'Games', id: 'btn-g', type: Gamepad2, route: '/docs' },
       { name: 'Settings', id: 'btn-s', type: Cog, route: '/settings' },
     ];
-
+    
     if (user) {
       baseItems.push(
         { name: 'Profile', id: 'btn-p', type: User, route: '/profile' },

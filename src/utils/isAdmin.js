@@ -4,7 +4,7 @@ export function isAdmin(user) {
   // admin username(s)
   const ADMIN_USERNAMES = ["ryk_cool"];
 
-  // you said you're storing username in Firestore/localStorage
+  // storing username in Firestore/localStorage
   const username =
     user.displayName ||
     localStorage.getItem("username") ||
